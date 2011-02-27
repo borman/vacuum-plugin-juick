@@ -1,4 +1,2 @@
-HEADERS = juickplugin.h \
-    juickprotocolpatcher.h
-SOURCES = juickplugin.cpp \
-    juickprotocolpatcher.cpp
+HEADERS = juickplugin.h juickprotocolpatcher.h
+SOURCES = juickplugin.cpp juickprotocolpatcher.cpp

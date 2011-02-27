@@ -9,8 +9,7 @@
 
 #define JUICK_UUID "{a1ba3111-a550-452a-99b5-4f795387ac61}"
 
-class JuickPlugin : public QObject,
-				   public IPlugin
+class JuickPlugin : public QObject, public IPlugin
 {
 	Q_OBJECT;
 	Q_INTERFACES(IPlugin);
