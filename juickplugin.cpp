@@ -87,15 +87,6 @@ void JuickPlugin::onStreamOpened(IXmppStream *AXmppStream)
 void JuickPlugin::onStreamClosed(IXmppStream *AXmppStream)
 {
   Q_UNUSED(AXmppStream);
-  /*
-  pepCapableStreams.removeAll(AXmppStream->streamJid());
-  unverifiedStreams.removeAll(AXmppStream->streamJid());
-  if (stanzaHandles.contains(AXmppStream->streamJid()))
-  {
-    FStanzaProcessor->removeStanzaHandle(stanzaHandles[AXmppStream->streamJid()]);
-    stanzaHandles.remove(AXmppStream->streamJid());
-  }
-  */
 }
 
 

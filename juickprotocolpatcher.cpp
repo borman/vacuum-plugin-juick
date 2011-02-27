@@ -29,6 +29,8 @@ bool JuickProtocolPatcherIn::stanzaReadWrite(int AHandleId, const Jid &AStreamJi
         QString from = QString("thread_%1@juick.com").arg(mid);
         AStanza.setFrom(from);
       }
+      else
+        return true;
     }
     else // PM
     {
