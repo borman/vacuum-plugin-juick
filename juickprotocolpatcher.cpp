@@ -26,7 +26,7 @@ bool JuickProtocolPatcherIn::stanzaReadWrite(int AHandleId, const Jid &AStreamJi
       if (juick.hasAttribute("rid")) // Redirect replies only
       {
         QString mid = juick.attribute("mid");
-        QString from = QString("thread_%1@juick.com").arg(mid);
+        QString from = QString("%1@juick.com").arg(mid);
         AStanza.setFrom(from);
       }
       else
@@ -60,24 +60,10 @@ bool JuickProtocolPatcherOut::stanzaReadWrite(int AHandleId, const Jid &AStreamJ
   bool isJuick = false;
 
   QRegExp userDest("user_(.+)@juick.com");
-  QRegExp threadDest("thread_(.+)@juick.com");
+  QRegExp threadDest("(.+)@juick.com");
   QRegExp replyRef("/\\d+ .*");
 
-  if (threadDest.exactMatch(AStanza.to()))
-  {
-    isJuick = true;
-    QString thread = threadDest.capturedTexts().at(1);
-
-    AStanza.setTo("juick@juick.com/Juick");
-    QDomElement body = AStanza.element().firstChildElement("body");
-    QDomCharacterData bodyText = body.firstChild().toCharacterData();
-
-    if (replyRef.exactMatch(bodyText.data()))
-      bodyText.insertData(0, QString("#%1").arg(thread)); // A reply to a reply
-    else
-      bodyText.insertData(0, QString("#%1 ").arg(thread)); // A reply to a thread
-  }
-  else if (userDest.exactMatch(AStanza.to()))
+  if (userDest.exactMatch(AStanza.to()))
   {
     isJuick = true;
     QString username = userDest.capturedTexts().at(1);
@@ -86,6 +72,26 @@ bool JuickProtocolPatcherOut::stanzaReadWrite(int AHandleId, const Jid &AStreamJ
     QDomElement body = AStanza.element().firstChildElement("body");
     QDomCharacterData bodyText = body.firstChild().toCharacterData();
     bodyText.insertData(0, QString("PM @%1 ").arg(username));
+  }
+  else if (threadDest.exactMatch(AStanza.to()))
+  {
+    isJuick = true;
+    QString thread = threadDest.capturedTexts().at(1);
+
+    AStanza.setTo("juick@juick.com/Juick");
+    QDomElement body = AStanza.element().firstChildElement("body");
+    QDomCharacterData bodyText = body.firstChild().toCharacterData();
+    
+    QString message = bodyText.data().trimmed();
+
+    if (message == "U")
+      bodyText.setData(QString("U #%1").arg(thread));
+    else if (message == "!")
+      bodyText.setData(QString("! #%1").arg(thread));
+    else if (replyRef.exactMatch(bodyText.data()))
+      bodyText.insertData(0, QString("#%1").arg(thread)); // A reply to a reply
+    else
+      bodyText.insertData(0, QString("#%1 ").arg(thread)); // A reply to a thread
   }
 
   if (isJuick)
