@@ -36,7 +36,7 @@ bool JuickProtocolPatcherIn::stanzaReadWrite(int AHandleId, const Jid &AStreamJi
     {
       QDomElement user = juick.firstChildElement("user");
       QString username = user.attribute("uname");
-      QString from = QString("user_%1@juick.com").arg(username);
+      QString from = QString("pm_%1@juick.com").arg(username);
       AStanza.setFrom(from);
     }
   }
@@ -59,7 +59,7 @@ bool JuickProtocolPatcherOut::stanzaReadWrite(int AHandleId, const Jid &AStreamJ
 
   bool isJuick = false;
 
-  QRegExp userDest("user_(.+)@juick.com");
+  QRegExp userDest("pm_(.+)@juick.com");
   QRegExp threadDest("(.+)@juick.com");
   QRegExp replyRef("/\\d+ .*");
 

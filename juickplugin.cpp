@@ -68,7 +68,7 @@ void JuickPlugin::onStreamOpened(IXmppStream *AXmppStream)
 {
   IStanzaHandle handle_in;
   handle_in.handler = FInHandler;
-  handle_in.order = 200;
+  handle_in.order = 100;
   handle_in.direction = IStanzaHandle::DirectionIn;
   handle_in.streamJid = AXmppStream->streamJid();
   handle_in.conditions.append("/message[@from='juick@juick.com/Juick']");
