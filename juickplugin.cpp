@@ -5,8 +5,6 @@
 JuickPlugin::JuickPlugin()
 {
   FStanzaProcessor = NULL;
-  FInHandler = new JuickProtocolPatcherIn(this);
-  FOutHandler = new JuickProtocolPatcherOut(this);
 }
 
 JuickPlugin::~JuickPlugin()
@@ -27,11 +25,13 @@ void JuickPlugin::pluginInfo(IPluginInfo *APluginInfo)
 bool JuickPlugin::initConnections(IPluginManager *APluginManager, int &AInitOrder)
 {
   Q_UNUSED(AInitOrder);
+
   IPlugin *plugin = APluginManager->pluginInterface("IStanzaProcessor").value(0,NULL);
   if (plugin)
   {
     FStanzaProcessor = qobject_cast<IStanzaProcessor *>(plugin->instance());
   }
+
   plugin = APluginManager->pluginInterface("IXmppStreams").value(0,NULL);
   if (plugin)
   {
@@ -46,7 +46,126 @@ bool JuickPlugin::initConnections(IPluginManager *APluginManager, int &AInitOrde
           SLOT(onStreamClosed(IXmppStream *)));
     }
   }
+
   return (FStanzaProcessor != NULL);
+}
+
+void JuickPlugin::onStreamOpened(IXmppStream *AXmppStream)
+{
+  IStanzaHandle handle;
+  handle.handler = this;
+  handle.streamJid = AXmppStream->streamJid();
+
+  handle.order = 100;
+  handle.direction = IStanzaHandle::DirectionIn;
+  handle.conditions.append("/message[@from='juick@juick.com/Juick']");
+  FSHIMessageIn.insert(handle.streamJid, 
+		  FStanzaProcessor->insertStanzaHandle(handle));
+
+  handle.order = 1001;
+  handle.direction = IStanzaHandle::DirectionOut;
+  handle.conditions.clear();
+  handle.conditions.append("/message");
+  FSHIMessageOut.insert(handle.streamJid,
+		  FStanzaProcessor->insertStanzaHandle(handle));
+}
+
+bool JuickPlugin::stanzaReadWrite(int AHandleId, const Jid &AStreamJid, 
+		Stanza &AStanza, bool&AAccept)
+{
+	if (FSHIMessageIn.value(AStreamJid) == AHandleId)
+		return stanzaIn(AStanza);
+	else if (FSHIMessageOut.value(AStreamJid) == AHandleId)
+		return stanzaOut(AStanza);
+	else
+		return false;
+}
+
+bool JuickPlugin::stanzaIn(Stanza &AStanza)
+{
+  QDomElement body = AStanza.element().firstChildElement("body");
+  QDomElement juick = AStanza.element().firstChildElement("juick");
+
+  if (!body.isNull() && !juick.isNull())
+  {
+    if (juick.hasAttribute("mid")) // In thread
+    {
+      if (juick.hasAttribute("rid")) // Redirect replies only
+      {
+        QString mid = juick.attribute("mid");
+        QString from = QString("%1@juick.com").arg(mid);
+        AStanza.setFrom(from);
+      }
+      else
+        return true; // Drop post announcements
+    }
+    else // PM
+    {
+      QDomElement user = juick.firstChildElement("user");
+      QString username = user.attribute("uname");
+      QString from = QString("pm_%1@juick.com").arg(username);
+      AStanza.setFrom(from);
+    }
+  }
+
+  return false;
+}
+
+bool JuickPlugin::stanzaOut(Stanza &AStanza)
+{
+  bool isJuick = false;
+
+  QRegExp userDest("pm_(.+)@juick.com");
+  QRegExp threadDest("(.+)@juick.com");
+  QRegExp replyRef("/\\d+ .*");
+
+  if (userDest.exactMatch(AStanza.to()))
+  {
+    isJuick = true;
+    QString username = userDest.capturedTexts().at(1);
+
+    AStanza.setTo("juick@juick.com/Juick");
+    QDomElement body = AStanza.element().firstChildElement("body");
+    QDomCharacterData bodyText = body.firstChild().toCharacterData();
+    bodyText.insertData(0, QString("PM @%1 ").arg(username));
+  }
+  else if (threadDest.exactMatch(AStanza.to()))
+  {
+    isJuick = true;
+    QString thread = threadDest.capturedTexts().at(1);
+
+    AStanza.setTo("juick@juick.com/Juick");
+    QDomElement body = AStanza.element().firstChildElement("body");
+    QDomCharacterData bodyText = body.firstChild().toCharacterData();
+    
+    QString message = bodyText.data().trimmed();
+
+    if (message == "U")
+      bodyText.setData(QString("U #%1").arg(thread));
+    else if (message == "!")
+      bodyText.setData(QString("! #%1").arg(thread));
+    else if (replyRef.exactMatch(bodyText.data()))
+      bodyText.insertData(0, QString("#%1").arg(thread)); // A reply to a reply
+    else
+      bodyText.insertData(0, QString("#%1 ").arg(thread)); // A reply to a thread
+  }
+
+  if (isJuick)
+    AStanza.addElement("juick", "http://juick.com/message");
+
+  return false;
+}
+
+void JuickPlugin::onStreamClosed(IXmppStream *AXmppStream)
+{
+  Q_UNUSED(AXmppStream);
+  if (FStanzaProcessor)
+  {
+	  FStanzaProcessor->removeStanzaHandle(
+			  FSHIMessageIn.take(AXmppStream->streamJid()));
+	  FStanzaProcessor->removeStanzaHandle(
+			  FSHIMessageOut.take(AXmppStream->streamJid()));
+  }
 }
 
 bool JuickPlugin::initObjects()
@@ -63,31 +182,5 @@ bool JuickPlugin::startPlugin()
 {
   return true;
 }
-
-void JuickPlugin::onStreamOpened(IXmppStream *AXmppStream)
-{
-  IStanzaHandle handle_in;
-  handle_in.handler = FInHandler;
-  handle_in.order = 100;
-  handle_in.direction = IStanzaHandle::DirectionIn;
-  handle_in.streamJid = AXmppStream->streamJid();
-  handle_in.conditions.append("/message[@from='juick@juick.com/Juick']");
-
-  IStanzaHandle handle_out;
-  handle_out.handler = FOutHandler;
-  handle_out.order = 100;
-  handle_out.direction = IStanzaHandle::DirectionOut;
-  handle_out.streamJid = AXmppStream->streamJid();
-  handle_out.conditions.append("/message");
-
-  FStanzaProcessor->insertStanzaHandle(handle_in);
-  FStanzaProcessor->insertStanzaHandle(handle_out);
-}
-
-void JuickPlugin::onStreamClosed(IXmppStream *AXmppStream)
-{
-  Q_UNUSED(AXmppStream);
-}
-
 
 Q_EXPORT_PLUGIN2(plg_juick, JuickPlugin)
